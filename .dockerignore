@@ -1,0 +1,20 @@
+# Version control and editor files
+.git
+.gitignore
+.idea
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Build/test artifacts and local coverage output
+bin
+tmp
+coverage.out
+*.test
+
+# Documentation and local tooling metadata not needed by the runtime image
+PRD.md
+postman
+README.md

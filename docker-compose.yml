@@ -43,7 +43,8 @@ services:
       REDIS_ADDR: redis:6379
       REDIS_PASSWORD: ""
       REDIS_DB: "0"
-      JWT_SECRET: change-this-to-a-long-random-production-secret
+      # Loaded from the root .env file by Docker Compose. Never commit its value.
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
       JWT_TTL: 24h
       MIGRATIONS_PATH: /app/db/migrations
     ports:
