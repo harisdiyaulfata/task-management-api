@@ -1,0 +1,413 @@
+{
+  "info": {
+    "_postman_id": "e5ba7338-4ee7-4329-92c8-b2e75ca9c43f",
+    "name": "Task Management API",
+    "description": "Collection for end-to-end manual testing of the Task Management API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "userAName", "value": "User A" },
+    { "key": "userAEmail", "value": "usera@example.com" },
+    { "key": "userAPassword", "value": "password123" },
+    { "key": "userBName", "value": "User B" },
+    { "key": "userBEmail", "value": "userb@example.com" },
+    { "key": "userBPassword", "value": "password123" },
+    { "key": "tokenA", "value": "" },
+    { "key": "tokenB", "value": "" },
+    { "key": "userAId", "value": "" },
+    { "key": "userBId", "value": "" },
+    { "key": "teamId", "value": "" },
+    { "key": "defaultTeamId", "value": "" },
+    { "key": "separateTeamName", "value": "" },
+    { "key": "taskId", "value": "" },
+    { "key": "idempotencyKey", "value": "" },
+    { "key": "firstTaskResponse", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "01 - Authentication",
+      "item": [
+        {
+          "name": "Register User A",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{userAName}}\",\n  \"email\": \"{{userAEmail}}\",\n  \"password\": \"{{userAPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/register"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('User A is registered', function () { pm.expect(pm.response.code).to.be.oneOf([201, 409]); });"
+            ] }
+          }]
+        },
+        {
+          "name": "Login User A",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userAEmail}}\",\n  \"password\": \"{{userAPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('User A login succeeds', function () { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('tokenA', body.token);",
+              "pm.collectionVariables.set('userAId', body.user.id);"
+            ] }
+          }]
+        },
+        {
+          "name": "Register User B",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{userBName}}\",\n  \"email\": \"{{userBEmail}}\",\n  \"password\": \"{{userBPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/register"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('User B is registered', function () { pm.expect(pm.response.code).to.be.oneOf([201, 409]); });"
+            ] }
+          }]
+        },
+        {
+          "name": "Login User B",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userBEmail}}\",\n  \"password\": \"{{userBPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('User B login succeeds', function () { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('tokenB', body.token);",
+              "pm.collectionVariables.set('userBId', body.user.id);"
+            ] }
+          }]
+        }
+      ]
+    },
+    {
+      "name": "02 - Tasks",
+      "item": [
+        {
+          "name": "Create Task (original request)",
+          "event": [{
+            "listen": "prerequest",
+            "script": { "exec": [
+              "pm.collectionVariables.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+            ] }
+          }, {
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Task is created', function () { pm.response.to.have.status(201); });",
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('taskId', body.id);",
+              "pm.collectionVariables.set('firstTaskResponse', pm.response.text());"
+            ] }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenA}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Prepare technical submission\",\n  \"description\": \"Verify every API feature\",\n  \"status\": \"todo\"\n}"
+            },
+            "url": "{{baseUrl}}/tasks"
+          }
+        },
+        {
+          "name": "Create Task (idempotency replay)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenA}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Prepare technical submission\",\n  \"description\": \"Verify every API feature\",\n  \"status\": \"todo\"\n}"
+            },
+            "url": "{{baseUrl}}/tasks"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Replay returns 201', function () { pm.response.to.have.status(201); });",
+              "pm.test('Replay body is identical', function () { pm.expect(pm.response.text()).to.eql(pm.collectionVariables.get('firstTaskResponse')); });"
+            ] }
+          }]
+        },
+        {
+          "name": "List Tasks with pagination, search, and status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenA}}" }],
+            "url": "{{baseUrl}}/tasks?page=1&limit=10&search=technical&status=todo"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Task list succeeds', function () { pm.response.to.have.status(200); });",
+              "pm.test('Pagination result is returned', function () { pm.expect(pm.response.json()).to.have.property('items'); });"
+            ] }
+          }]
+        },
+        {
+          "name": "Get Task by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenA}}" }],
+            "url": "{{baseUrl}}/tasks/{{taskId}}"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Task detail succeeds', function () { pm.response.to.have.status(200); });"] } }]
+        },
+        {
+          "name": "Update Task",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenA}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Prepare recruiter submission\",\n  \"status\": \"in_progress\"\n}" },
+            "url": "{{baseUrl}}/tasks/{{taskId}}"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Task update succeeds', function () { pm.response.to.have.status(200); });"] } }]
+        },
+        {
+          "name": "Assign Task to User B",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenA}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"assignee_id\": \"{{userBId}}\"\n}" },
+            "url": "{{baseUrl}}/tasks/{{taskId}}/assign"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Task assignment succeeds', function () { pm.response.to.have.status(200); });",
+              "pm.test('Assignee is User B', function () { pm.expect(pm.response.json().assignee_id).to.eql(pm.collectionVariables.get('userBId')); });"
+            ] }
+          }]
+        },
+        {
+          "name": "Create Separate Team for User A",
+          "event": [{
+            "listen": "prerequest",
+            "script": { "exec": [
+              "pm.collectionVariables.set('separateTeamName', 'User A Separate Team ' + pm.variables.replaceIn('{{$guid}}'));"
+            ] }
+          }, {
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Team creation succeeds', function () { pm.response.to.have.status(201); });",
+              "pm.collectionVariables.set('teamId', pm.response.json().id);"
+            ] }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenA}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"{{separateTeamName}}\"\n}" },
+            "url": "{{baseUrl}}/teams"
+          }
+        },
+        {
+          "name": "Find Default Team",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenA}}" }],
+            "url": "{{baseUrl}}/teams"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Default team is found', function () { pm.response.to.have.status(200); });",
+              "const defaultTeam = pm.response.json().items.find(function (team) { return team.name === 'Default Team'; });",
+              "pm.expect(defaultTeam, 'Default Team must exist').to.exist;",
+              "pm.collectionVariables.set('defaultTeamId', defaultTeam.id);"
+            ] }
+          }]
+        },
+        {
+          "name": "Remove User A from Default Team",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenA}}" }],
+            "url": "{{baseUrl}}/teams/{{defaultTeamId}}/members/{{userAId}}"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('User A is removed from default team', function () { pm.response.to.have.status(204); });"] } }]
+        },
+        {
+          "name": "Reject Assignment Across Different Teams",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenA}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"assignee_id\": \"{{userBId}}\"\n}" },
+            "url": "{{baseUrl}}/tasks/{{taskId}}/assign"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Different teams are rejected', function () { pm.response.to.have.status(403); });",
+              "pm.test('Forbidden error code is returned', function () { pm.expect(pm.response.json().code).to.eql('FORBIDDEN'); });"
+            ] }
+          }]
+        },
+        {
+          "name": "List My Teams",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenA}}" }],
+            "url": "{{baseUrl}}/teams"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('My teams are listed', function () { pm.response.to.have.status(200); });"] } }]
+        },
+        {
+          "name": "List Separate Team Members",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenA}}" }],
+            "url": "{{baseUrl}}/teams/{{teamId}}/members"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Team members are listed', function () { pm.response.to.have.status(200); });"] } }]
+        },
+        {
+          "name": "Add User B to Separate Team",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenA}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"user_id\": \"{{userBId}}\"\n}" },
+            "url": "{{baseUrl}}/teams/{{teamId}}/members"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Team member is added', function () { pm.response.to.have.status(204); });"] } }]
+        },
+        {
+          "name": "Assignment Succeeds After Joining Same Team",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenA}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"assignee_id\": \"{{userBId}}\"\n}" },
+            "url": "{{baseUrl}}/tasks/{{taskId}}/assign"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Assignment is allowed for same team', function () { pm.response.to.have.status(200); });"] } }]
+        },
+        {
+          "name": "Remove User B from Separate Team",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenA}}" }],
+            "url": "{{baseUrl}}/teams/{{teamId}}/members/{{userBId}}"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Team member is removed', function () { pm.response.to.have.status(204); });"] } }]
+        },
+        {
+          "name": "Restore User A to Default Team",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenB}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"user_id\": \"{{userAId}}\"\n}" },
+            "url": "{{baseUrl}}/teams/{{defaultTeamId}}/members"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('User A is restored to default team', function () { pm.response.to.have.status(204); });"] } }]
+        },
+        {
+          "name": "Delete Task",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenA}}" }],
+            "url": "{{baseUrl}}/tasks/{{taskId}}"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Task deletion succeeds', function () { pm.response.to.have.status(204); });"] } }]
+        }
+      ]
+    },
+    {
+      "name": "03 - Error and Session Tests",
+      "item": [
+        {
+          "name": "Reject invalid email",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Invalid Email\",\n  \"email\": \"invalid-email\",\n  \"password\": \"password123\"\n}" },
+            "url": "{{baseUrl}}/auth/register"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Invalid email is rejected', function () { pm.response.to.have.status(400); });"] } }]
+        },
+        {
+          "name": "Reject unauthenticated task request",
+          "request": { "method": "GET", "url": "{{baseUrl}}/tasks" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Authentication is required', function () { pm.response.to.have.status(401); });"] } }]
+        },
+        {
+          "name": "Logout User A",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenA}}" }],
+            "url": "{{baseUrl}}/auth/logout"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Logout succeeds', function () { pm.response.to.have.status(204); });"] } }]
+        },
+        {
+          "name": "Reject token after logout",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenA}}" }],
+            "url": "{{baseUrl}}/tasks"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Logged-out token is rejected', function () { pm.response.to.have.status(401); });"] } }]
+        },
+        {
+          "name": "Unknown route returns JSON error",
+          "request": { "method": "GET", "url": "{{baseUrl}}/unknown-route" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Unknown route returns 404', function () { pm.response.to.have.status(404); });", "pm.test('Standard error fields exist', function () { const body = pm.response.json(); pm.expect(body).to.include.keys('status', 'code', 'message', 'timestamp'); });"] } }]
+        }
+      ]
+    }
+  ]
+}
